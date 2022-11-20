@@ -1,0 +1,436 @@
+
+Download and Installation
+
+1.Download using Minikube
+
+Install Chocolatey Package ServicePointManager
+$Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+
+$choco install minikube
+$minikube start
+ minikube start --memory 8192 --cpus 4
+
+kubectl will present at
+C:\ProgramData\chocolatey\bin
+
+kubernetes uses kubectl to manage apps
+$kubectl version
+$minikube stop
+$minikube logs
+
+
+2. Enable kubernetes using Docker desktop
+ Docker Destop-> settings->Enable kubernetes
+it will start kubernetes single-node cluster
+
+-kubectl will present at
+C:\Program Files\Docker\Docker\resources\bin\kubectl
+
+Check state of docker desktop cluster
+
+$kubectl get nodes
+$kubectl --version
+$kubectl cluster-info
+
+Docker desktop will install kubectl to manage kubernetes
+
+voting app
+
+kubectl apply -f https://raw.githubusercontent.com/docker/docker-birthday/master/resources/kubernetes-docker-desktop/vote.yaml
+
+kubectl -n vote get pods
+
+Pod is one or more linked containers, which runs on the worker nodes. Each of these Pod objects has its own logical IP address,
+he process that corresponds to the running application and also a hostname. All containers in the Pod resource operate on the same
+logical machine, while containers in other Pod are isolated from each other, even if they operate on the same node. Pod also has
+self-healing mechanism - it runs underhood a health check for the container. That kind of feature can replace Pods that have failed or
+ stopped responding for any reason.
+Docker is a tool designed to make creating, deploying and running application easier by using containers. Docker is a container runtime
+ library - it manage
+ the life cycle of containers. It’s a command-line tool for packaging and running containers, and have an API for container
+
+ etcd is a database where Kubernetes store all its information of the nodes. It keeps a configuration data, the actual and desired state
+ of the system, and its metadata inside.
+ kube-scheduler is a component that decides where to run newly created Pods.
+ kube-controller-manager is responsible for running resource controllers, such as DaemonSets, Deployments, ReplicaSets, etc.
+ kube-apiserver is a frontend server of the control plane, which handles API requests.
+
+
+Cloud-controller-manager runs controllers that interact with the cloud provider.
+
+Create DeploymentsCreate a Deployment based on the YAML file:
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-app-deployment
+  labels:
+    app: hello-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello-app
+  template:
+    metadata:
+      labels:
+        app: hello-app
+    spec:
+      nodeSelector:
+        type: backend
+      containers:
+        - name: hello-app
+          image: hello-app:v.01
+          ports:
+            - containerPort: 80
+
+apiVersion - it specifies the Kubernetes API version.
+kind - it specifies a type of Kubernetes object/resource. There are many types like Deployment, Pod, Service, Replicasets, Secret, Jobs and much more.
+ To see more details you can use kubectl explain <resource> command.
+metadata - data that helps specify unique information about the object. Kubernetes resource metadata could be used to delete a resource
+(here we have a label hello-app). If you want to delete that deployment controller, you could simply type kubectl delete deployment -l
+app=hello-app, but remember deleting deployment controller, removes all the objects defined by its configuration.
+spec - contains the actual description of the Pods contents, such as the containers, volumes, ports, etc.
+template - describes all instructions executed in the Pod.
+replicas - tells Kubernetes how many replicas (Pods) to create and distribute across the worker nodes.
+labels - adds a label to a Deployment, it is used for identifying objects within k8s.
+selector - defines which Pods should be managed by the Deployment.
+nodeSelector - that selector is used to label a node, so if you have the node labeled, all Pods with that label will be spread across nodes
+with that specified label. For more advanced scheduling you should use nodeAffinity and podAntiAffinity rules.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  replicas: 2 # tells deployment to run 2 pods matching the template
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+
+ kubectl apply -f https://k8s.io/examples/application/deployment.yaml
+ kubectl apply -f deployment.yaml
+Display information about the Deployment:
+
+ kubectl describe deployment nginx-deployment
+ kubectl get replicaset
+ kubectl get deployments
+ kubectl get services
+ kubectl get vs
+ kubectl get hpa
+ kubectl top Pods
+ kubectl top nodeSelector
+ kubectl exec -it <podname> bin/bash
+ curl <url>
+ ping <url>
+ telnet <url>
+ curl -kv <url>
+ kubect get events --sort-by='.metadata.creationTimestamp'
+
+ kubectl port-forward pod/<pod-name> <local-port>:<exposed-port>
+ kubectl port-forward nginx-deployment-66b6c48dd5-hcldd 8083:80
+where local-port is the port from which the container will be accessed from the browser ..localhost:<local-port> while the exposed-port is
+the port on which the container listens to. Usually defined with the EXPOSE command in the Dockerfile
+
+port-forward command is mainly for debugging, also grants you temporary access
+ to this application on your local machine. If you need to connect to the application under
+a specific port and you do not want to expose it using the Ingress object, then you should use the port-forward command.
+ Normally you would use Load Balancer service to expose traffic to each of your services, but Ingress allows you to create a
+ way to route requests to particular services through one entrypoint.
+
+ kubectl logs <pod name> -n <namespace>
+
+docker ps -a
+kubectl get pods -l run=my-nginx -o yaml | grep podIP
+    podIP: 10.244.3.4
+    podIP: 10.244.2.5
+You should be able to ssh into any node in your cluster and curl both IPs.
+
+Creating a Service
+So we have pods running nginx in a flat, cluster wide, address space. In theory, you could talk to these pods directly,
+ but what happens when a node dies? The pods die with it, and the Deployment will create new ones, with different IPs.
+ This is the problem a Service solves.
+
+
+A Kubernetes Service is an abstraction which defines a logical set of Pods running somewhere in your cluster, that all provide the same functionality.
+ When created, each Service is assigned a unique IP address (also called clusterIP). This address is tied to the lifespan of the Service,
+  and will not change while the Service is alive. Pods can be configured to talk to the Service, and know that communication to the Service
+   will be automatically load-balanced out to some pod that is a member of the Service.
+
+You can create a Service for your 2 nginx replicas with kubectl expose:
+
+kubectl expose deployment/my-nginx
+
+
+ A Service in Kubernetes is a REST object, similar to a Pod. Like all of the REST objects, you can POST a Service definition to the API server
+ to create a new instance. The name of a Service object must be a valid DNS label name.
+
+For example, suppose you have a set of Pods where each listens on TCP port 9376 and contains a label app=MyApp:
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  selector:
+    app: nginx
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9376
+      This specification creates a new Service object named "my-service", which targets TCP port 9376 on any Pod with the app=nginx label.
+
+      protocols like TCP,UDP,SCTP
+
+Kubernetes assigns this Service an IP address (sometimes called the "cluster IP"), which is used by the Service proxies
+(see Virtual IPs and service proxies below).
+Every node in a Kubernetes cluster runs a kube-proxy. kube-proxy is responsible for implementing a form of virtual IP for Services of type
+ other than ExternalName
+
+
+      On cloud providers which support external load balancers, setting the type field to LoadBalancer provisions a load balancer for your Service.
+      The actual creation of the load balancer happens asynchronously, and information about the provisioned balancer is published in the Service's
+       .status.loadBalancer field. For example:
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  selector:
+    app: MyApp
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9376
+  clusterIP: 10.0.171.239
+  type: LoadBalancer
+status:
+  loadBalancer:
+    ingress:
+    - ip: 192.0.2.127
+
+
+    Kubernetes offers a DNS cluster addon Service that automatically assigns dns names to other Services. You can check if it's running on your cluster:
+
+    kubectl get services kube-dns --namespace=kube-system
+
+    There are several ways to route external traffic into your cluster:
+
+Using Kubernetes proxy and ClusterIP: The default Kubernetes ServiceType is ClusterIp, which exposes the Service on a cluster-internal IP.
+ To reach the ClusterIp from an external source, you can open a Kubernetes proxy between the external source and the cluster. This is usually
+  only used for development.
+  kubectl expose deployment hello --port=8080 --type=ClusterIP service "hello" exposed
+
+Exposing services as LoadBalancer: Declaring a Service as LoadBalancer exposes it externally, using a cloud provider’s load balancer solution.
+The cloud provider will provision a load balancer for the Service, and map it to its automatically assigned NodePort. This is the most widely
+used method in production environments.
+
+kubectl expose deployment hello-world --type=LoadBalancer --port=8081--name=my-service
+Display information about the Service:
+
+kubectl get services my-service
+The output is similar to:
+
+NAME         TYPE           CLUSTER-IP     EXTERNAL-IP      PORT(S)    AGE
+my-service   LoadBalancer   10.3.245.137   104.198.205.71   8080/TCP   54s
+
+
+kubectl describe services my-service
+The output is similar to:
+
+Name:           my-service
+Namespace:      default
+Labels:         app.kubernetes.io/name=load-balancer-example
+Annotations:    <none>
+Selector:       app.kubernetes.io/name=load-balancer-example
+Type:           LoadBalancer
+IP:             10.3.245.137
+LoadBalancer Ingress:   104.198.205.71
+Port:           <unset> 8080/TCP
+NodePort:       <unset> 32377/TCP
+Endpoints:      10.0.0.6:8080,10.0.1.6:8080,10.0.1.7:8080 + 2 more...
+Session Affinity:   None
+Events:         <none>
+Make a note of the external IP address (LoadBalancer Ingress) exposed by your service. In this example, the external IP address is
+ 104.198.205.71. Also note the value of Port and NodePort. In this example, the Port is 8080 and the NodePort is 32377.
+
+In the preceding output, you can see that the service has several endpoints: 10.0.0.6:8080,10.0.1.6:8080,10.0.1.7:8080 + 2 more.
+ These are internal addresses of the pods that are running the Hello World application. To verify these are pod addresses, enter this command:
+
+
+kubectl get pods --output=wide
+
+Use the external IP address (LoadBalancer Ingress) to access the Hello World application:
+
+curl http://<external-ip>:<port>
+where <external-ip> is the external IP address (LoadBalancer Ingress) of your Service, and <port> is the value of Port in your Service description.
+ If you are using minikube, typing minikube service my-service will automatically open the Hello World application in a browser.
+
+The response to a successful request is a hello message:
+
+Hello Kubernetes!
+
+
+
+Exposing services as NodePort: Declaring a Service as NodePortexposes it on each Node’s IP at a static port (referred to as the NodePort).
+ You can then access the Service from outside the cluster by requesting <NodeIp>:<NodePort>. This can also be used for production, albeit
+ with some limitations.
+
+
+
+
+Creating a service for an application running in two pods
+Here is the configuration file for the application Deployment:
+
+service/access/hello-application.yaml Copy service/access/hello-application.yaml to clipboard
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-world
+spec:
+  selector:
+    matchLabels:
+      run: load-balancer-example
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        run: load-balancer-example
+    spec:
+      containers:
+        - name: hello-world
+          image: gcr.io/google-samples/node-hello:1.0
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+Run a Hello World application in your cluster: Create the application Deployment using the file above:
+
+kubectl apply -f https://k8s.io/examples/service/access/hello-application.yaml
+The preceding command creates a Deployment and an associated ReplicaSet. The ReplicaSet has two Pods each of which runs the Hello World application.
+
+Display information about the Deployment:
+
+kubectl get deployments hello-world
+kubectl describe deployments hello-world
+Display information about your ReplicaSet objects:
+
+kubectl get replicasets
+kubectl describe replicasets
+Create a Service object that exposes the deployment:
+
+kubectl expose deployment hello-world --type=NodePort --name=example-service
+Display information about the Service:
+
+kubectl describe services example-service
+
+kubectl get pods --selector="run=load-balancer-example" --output=wide
+
+
+According to the official documentation, an Ingress is an API object that manages external access to the services in a cluster (typically HTTP).
+So what’s the difference between this and LoadBalancer or NodePort?
+
+Ingress isn’t a type of Service, but rather an object that acts as a reverse proxy and single entry-point to your cluster that routes the request
+ to different services. The most basic Ingress is the NGINX Ingress Controller, where the NGINX takes on the role of reverse proxy, while also
+ functioning as SSL.
+ Ingress is exposed to the outside of the cluster via ClusterIP and Kubernetes proxy, NodePort, or LoadBalancer,
+  and routes incoming traffic according to the configured rules.
+
+  Istio is a service mesh—a modernized service networking layer that provides a transparent and language-independent way to flexibly and
+   easily automate application network functions. It is a popular solution for managing the different microservices that make up a cloud-native
+    application. Istio service mesh also supports how those microservices communicate and share data with one another.
+
+
+
+When you want to run an application in Kubernetes you do so by declaring a Pod which describes the container that you want to run.
+Each Pod is given an IP address that is internal to the Kubernetes cluster but this IP is not accessible from outside of Kubernetes.
+
+ Even from inside Kubernetes you’d have to know the IP of the Pod to access it which is inconvenient at best.
+You can create a simple Deployment to manage a Pod as easily as:
+$ kubectl run hello --image=paulczar/hello-world
+deployment "hello" created
+However in order to make a pod accessible you can create a Service which is an abstraction that creates a logical group of Pods together
+and provides a way to access them. A Service uses the metadata labels assigned to Pods to determine its constituents.
+Each Service has a setting called ServiceType that defines how that service is exposed. You can set this to ClusterIP, NodePort, LoadBalancer,
+ or ExternalName depending on your particular deployment scenario.
+
+ClusterIP
+ClusterIP is the default ServiceType and it creates a single IP address that can be used to access its Pods which can only be accessed from
+inside the cluster. If KubeDNS is enabled it will also get a series of DNS records assigned to it include an A record to match its IP.
+This is very useful for exposing microservices running inside the same Kubernetes cluster to each other.
+You can expose your application via a ClusterIP service and demonstrate accessing it from another Pod like so:
+$ kubectl expose deployment hello --port=8080 --type=ClusterIP
+service "hello" exposed
+$ kubectl run -i --tty --rm debug --image=alpine \
+  --restart=Never -- wget -qO - hello:8080
+<html><head><title>hello world</title></head><body>hello world!</body></html>
+$ kubectl delete service hello
+service "hello" deleted
+Since KubeDNS is enabled in minikube by default you can access the service via DNS using the name of the service.
+
+NodePort
+NodePort builds on top of ClusterIP to create a mapping from each Worker Node’s static IP on a specified (or Kubernetes chosen) Port.
+ A Service exposed as a NodePort can be accessed via <node-ip-address>:<node-port>. This ServiceType can be useful when developing applications
+ with minikube or for exposing a specific Port to an application via an unmanaged load balancer or round robin DNS.
+$ kubectl expose deployment hello --port=8080 --type=NodePort
+service "hello" exposed
+$ kubectl get service hello
+NAME      TYPE       CLUSTER-IP   EXTERNAL-IP   PORT(S)          AGE
+hello     NodePort   10.0.0.231   <none>        8080:30259/TCP   21s
+$ minikube ip
+192.168.99.100
+$ curl 192.168.99.100:30259
+<html><head><title>hello world</title></head><body>hello world!</body></html>
+$ kubectl delete service hello
+service "hello" deleted
+
+LoadBalancer
+
+LoadBalancer builds on top of NodePort and is used to automatically configure a supported external Load Balancer (for instance an ELB in Amazon)
+ to route traffic through to the NodePort of the Service. This is the most versatile of the ServiceTypes but requires that you have a supported
+ Load Balancer in your infrastructure of which most major cloud providers have.
+In minikube this would produce the same result as a NodePort as minikube does not have a load balancer. However we can demonstrate it on Google
+ Cloud quite easily if you have an account:
+$ gcloud container clusters get-credentials cluster-1 \
+  --zone us-central1-a --project XXXX
+$ kubectl run hello --image=paulczar/hello-world
+deployment "hello" created
+$ kubectl expose deployment hello --port=8080 --type=LoadBalancer
+service "hello" exposed
+$ kubectl get service
+NAME         TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)          AGE
+hello        LoadBalancer   10.11.251.34   35.192.25.113   8080:32107/TCP   2m
+$ curl 35.192.25.113:8080
+<html><head><title>hello world</title></head><body>hello world!</body></html>
+ExternalName
+ExternalName creates DNS records in KubeDNS to direct the Service’s DNS to an external service specified in the field ExternalName. It provides no other routing or load balancing services
+
+Securing the Service
+Till now we have only accessed the nginx server from within the cluster. Before exposing the Service to the internet,
+you want to make sure the communication channel is secure. For this, you will need:
+
+Self signed certificates for https (unless you already have an identity certificate)
+An nginx server configured to use the certificates
+A secret that makes the certificates accessible to pods
+You can acquire all these from the nginx https example. This requires having go and make tools installed. If you don't want to install those,
+ then follow the manual steps later. In short:
+
+make keys KEY=/tmp/nginx.key CERT=/tmp/nginx.crt
+kubectl create secret tls nginxsecret --key /tmp/nginx.key --cert /tmp/nginx.crt
+secret/nginxsecret created
+kubectl get secrets
+NAME                  TYPE                                  DATA      AGE
+default-token-il9rc   kubernetes.io/service-account-token   1         1d
+nginxsecret           kubernetes.io/tls                     2         1m
+And also the configmap:
+
+kubectl create configmap nginxconfigmap --from-file=default.conf
